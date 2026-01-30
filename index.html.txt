@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin Dashboard • Rakka Advisory</title>
+
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#070a12;color:#e8ecf5;margin:0}
+    .wrap{max-width:1100px;margin:0 auto;padding:28px}
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}
+    .card{background:#0d1221;border:1px solid #1e2940;border-radius:16px;padding:18px;margin-top:14px}
+    a{color:#6b7cff;text-decoration:none}
+    a:hover{text-decoration:underline}
+    .muted{color:#a7b1c2}
+    .btn{background:#121a33;border:1px solid #243055;color:#e8ecf5;padding:10px 12px;border-radius:12px;cursor:pointer}
+    .btn:hover{filter:brightness(1.08)}
+    .pill{display:inline-block;padding:4px 10px;border:1px solid #243055;border-radius:999px;font-size:12px;color:#a7b1c2}
+    .divider{height:1px;background:#1e2940;margin:16px 0}
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th,td{padding:10px;border-bottom:1px solid #1e2940;text-align:left;vertical-align:top}
+    th{color:#a7b1c2;font-weight:600}
+    .err{color:#ffb4b4}
+    .ok{color:#bff3ff}
+    input, select{
+      width:100%; padding:10px 10px; border-radius:12px;
+      border:1px solid #243055; background:#0b1020; color:#e8ecf5; outline:none;
+    }
+    input:focus, select:focus{border-color:#6b7cff}
+    .row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+    @media (max-width: 900px){ .row{grid-template-columns:1fr} }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div>
+        <h1 style="margin:0">Admin Dashboard</h1>
+        <p class="muted" style="margin:6px 0 0">
+          Endpoint: <span class="pill">GET /api/admin/clients</span>
+        </p>
+      </div>
+      <button class="btn" onclick="logout()">Logout</button>
+    </div>
+
+    <div class="card">
+      <h2 style="margin:0 0 10px">Add Client</h2>
+
+      <div class="row">
+        <div>
+          <label class="muted" style="font-size:12px;font-weight:700">Full name</label>
+          <input id="c_full_name" placeholder="e.g. John Doe" />
+        </div>
+        <div>
+          <label class="muted" style="font-size:12px;font-weight:700">Service</label>
+          <input id="c_service" placeholder="e.g. Turkey Tourist Visa" />
+        </div>
+        <div>
+          <label class="muted" style="font-size:12px;font-weight:700">Status</label>
+          <select id="c_status">
+            <option>In progress</option>
+            <option>Submitted</option>
+            <option>Approved</option>
+            <option>Rejected</option>
+            <option>Completed</option>
+          </select>
+        </div>
+        <div>
+          <label class="muted" style="font-size:12px;font-weight:700">Email</label>
+          <input id="c_email" placeholder="client@email.com" />
+        </div>
+        <div>
+          <label class="muted" style="font-size:12px;font-weight:700">Phone</label>
+          <input id="c_phone" placeholder="+2547..." />
+        </div>
+        <div style="display:flex;align-items:end">
+          <button class="btn" id="addBtn" onclick="addClient()">Add Client</button>
+        </div>
+      </div>
+
+      <div id="addMsg" class="muted" style="margin-top:10px"></div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin:0 0 10px">Clients</h2>
+      <div id="adminBox" class="muted">Loading clients…</div>
+    </div>
+
+    <div class="card">
+      <p><a href="../index.html">← Back to Home</a></p>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = "https://rakka-login-api.rakkaadvisory.workers.dev".replace(/\/+$/, "");
+
+    function esc(s) {
+      return String(s ?? "").replace(/[&<>"']/g, (m) => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+      }[m]));
+    }
+
+    function getToken(){
+      return localStorage.getItem("rakka_token");
+    }
+
+    async function loadAdmin() {
+      const token = getToken();
+      if (!token) return location.href = "../index.html";
+
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/clients`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (!res.ok) return location.href = "../index.html";
+
+        const json = await res.json().catch(()=> ({}));
+        const clients = json?.clients || [];
+
+        if (!clients.length) {
+          document.getElementById("adminBox").innerHTML =
+            `<div class="muted">No clients found yet.</div>`;
+          return;
+        }
+
+        document.getElementById("adminBox").innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>Client ID</th>
+                <th>Full Name</th>
+                <th>Service</th>
+                <th>Status</th>
+                <th>Contact</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${clients.map(c => `
+                <tr>
+                  <td>${esc(c.client_id || "-")}</td>
+                  <td>${esc(c.full_name || "-")}</td>
+                  <td>${esc(c.service || "-")}</td>
+                  <td>
+                    <select onchange="updateStatus('${esc(c.client_id)}', this.value)">
+                      ${["In progress","Submitted","Approved","Rejected","Completed"].map(s =>
+                        `<option ${s === (c.status || "") ? "selected" : ""}>${s}</option>`
+                      ).join("")}
+                    </select>
+                  </td>
+                  <td class="muted">
+                    ${c.email ? `Email: ${esc(c.email)}<br>` : ""}
+                    ${c.phone ? `Phone: ${esc(c.phone)}` : ""}
+                  </td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        `;
+      } catch (e) {
+        document.getElementById("adminBox").innerHTML =
+          `<div class="err">Could not load admin data (API down / network error).</div>`;
+      }
+    }
+
+    async function addClient(){
+      const token = getToken();
+      if (!token) return location.href = "../index.html";
+
+      const full_name = document.getElementById("c_full_name").value.trim();
+      const service = document.getElementById("c_service").value.trim();
+      const status = document.getElementById("c_status").value.trim();
+      const email = document.getElementById("c_email").value.trim();
+      const phone = document.getElementById("c_phone").value.trim();
+      const addMsg = document.getElementById("addMsg");
+      const addBtn = document.getElementById("addBtn");
+
+      addMsg.textContent = "";
+      if (!full_name) { addMsg.innerHTML = `<span class="err">Full name is required.</span>`; return; }
+
+      addBtn.disabled = true;
+      addBtn.textContent = "Adding...";
+
+      try{
+        const res = await fetch(`${API_BASE}/api/admin/clients`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ full_name, service, status, email, phone })
+        });
+
+        const data = await res.json().catch(()=> ({}));
+        if (!res.ok || !data.ok) throw new Error(data.message || "Could not add client");
+
+        addMsg.innerHTML = `<span class="ok">Client added: ${esc(data.client_id)}</span>`;
+        document.getElementById("c_full_name").value = "";
+        document.getElementById("c_service").value = "";
+        document.getElementById("c_email").value = "";
+        document.getElementById("c_phone").value = "";
+        document.getElementById("c_status").value = "In progress";
+
+        await loadAdmin();
+      } catch(err){
+        addMsg.innerHTML = `<span class="err">${esc(err.message || "Error adding client")}</span>`;
+      } finally{
+        addBtn.disabled = false;
+        addBtn.textContent = "Add Client";
+      }
+    }
+
+    async function updateStatus(client_id, status){
+      const token = getToken();
+      if (!token) return location.href = "../index.html";
+
+      try{
+        const res = await fetch(`${API_BASE}/api/admin/clients/${encodeURIComponent(client_id)}/status`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ status })
+        });
+
+        const data = await res.json().catch(()=> ({}));
+        if (!res.ok || !data.ok) throw new Error(data.message || "Could not update status");
+      } catch(err){
+        alert(err.message || "Status update failed");
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem("rakka_token");
+      location.href = "../index.html";
+    }
+
+    loadAdmin();
+  </script>
+</body>
+</html>
