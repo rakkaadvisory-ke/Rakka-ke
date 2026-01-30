@@ -48,7 +48,8 @@
   </div>
 
   <script>
-    const API_BASE = "https://rakka-login-api.rakkaadvisory.workers.dev".replace(/\/+$/, "");
+    const API_BASE = const API_BASE = "https://rakka-login-api.rakkaadvisory.workers.dev";
+;
 
     function esc(s) {
       return String(s ?? "").replace(/[&<>"']/g, (m) => ({
@@ -127,3 +128,4 @@
   </script>
 </body>
 </html>
+
